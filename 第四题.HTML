@@ -1,0 +1,831 @@
+<!DOCtype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta "name"="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Document</title>
+  <link rel="stylesheet" href="./catalogDrag.css">
+  <style>
+  .header {
+  margin-left:10px;
+  margin-top:20px;
+  font-size: 1.9rem;
+  font-weight: bolder;
+}
+html,body {
+  font-family: verdana,arial,sans-serif;
+  font-size:11px;
+  color:#333333;
+  background-color: #909399;
+}
+.container {
+  width: 100%;
+  background-color: #ECF5FF;
+  border-radius: 10px;
+  padding: 10px;
+  margin: 10px auto;
+  box-sizing: border-box;
+}
+.table-wrapper{
+  display block;
+}
+table {
+  margin-top: 20px;
+  font-size:11px;
+  border:1px solid #f8f8f8;
+  border-collapse: collapse;
+  display: inline-block;
+}
+table td {
+  border: 1px solid #666666;
+  padding: 3px 10px;
+  cursor: pointer
+}
+tbody tr:nth-child(2n) {
+  background-color: #e3e4e5;
+}
+tbody tr:nth-child(2n+1) {
+  background-color: #f8f8f8;
+}
+table tr{
+  border-width: 1px;
+  padding: 8px;
+  width: 100%;
+  border-style: solid;
+  border-color: #666666;
+  background-color: #ffffff;
+}
+tbody tr:hover {
+  background-color: rgba(0,0,0, 0.1);
+}
+thead tr {
+    background-color: #000000
+}
+thead td {
+  color: #ffffff;
+  text-align: center
+}
+.button-wrap {
+  margin: 20px auto;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.button-wrap button {
+  display: inline-block;
+  padding: .3em .5em;
+  border:0;
+  border-radius: .3em;
+  background-color: #409EFF;
+  text-align: center;
+  color:#ffffff;
+  margin: 0 10px;
+}
+button.disabled {
+  background-color: #e3e4e5;
+}
+/*css代码*/
+#menu{
+  display: none;
+  color: #ffffff;
+  position: absolute; 
+  background-color: #1A302C;
+}
+.menu{
+  width: 130px;
+  height: 25px;
+  line-height: 25px;
+  cursor: pointer;
+  text-indent: 7px;
+}
+.menu:hover{
+  background-color: #409EFF;
+}
+.showModle {
+  width: 450px;
+  height: 230px;
+  background-color: #e3e4e5;
+  border-radius: 10px;
+  position: absolute;
+  left: 50%;
+  top:0;
+  padding: 10px;
+  box-sizing: border-box;
+  transform: translate(-50%, -50%);
+  top: 30%;
+  text-align: center;
+}
+.showModle.hide{
+  display: none;  
+}
+.showModle input {
+  margin: 10px;  
+}
+.showModle span {
+  display: inline-block;
+  width: 50px;
+  text-align: left;
+}
+.showModle button {
+  display: inline-block;
+  padding: .3em .5em;
+  border:0;
+  border-radius: .3em;
+  background-color: #409EFF;
+  text-align: center;
+  color:#ffffff;
+  margin: 10px 20px 0;
+}
+#showChange {
+  position:absolute;
+  top:40px;
+  right: 40px;
+  width: 400px;
+}
+
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr class="file">
+          <td>lv</td>
+          <td>type</td>
+          <td>name</td>
+          <td>manage</td>
+          <td>phone</td>
+        </tr>
+      </thead>
+      <tbody id="dataShow">
+      </tbody>
+    </table>
+  </div>
+  <div id="menu">
+    <div class="menu">修改</div>
+  </div>
+  <div class="showModle">
+    <div class="containter">
+      <span>type</span><input type="text"><br>
+      <span>name</span><input type="text"><br>
+      <span>manager</span><input type="text"><br>
+      <span>phone</span><input type="text"><br>
+      <button>确定</button>
+      <button>取消</button>
+    </div>
+  </div>
+  <div id="showChange"></div>
+  <div class="showJson"></div>
+  <div class="button-wrap">
+    <button id="bth_prev">撤销</button>
+  </div>
+</div>
+</body>
+<script>
+  let $ = (el) => { return document.querySelectorAll(el).length <= 1 ? document.querySelector(el) : document.querySelectorAll(el)}
+    prev =  $("#bth_prev"), // 撤销上一级
+    next =  $("#bth_next"), // 反撤销
+    TR = document.createElement('tr'), // 用于克隆节点，优化速度
+    TD = document.createElement('td'), // 用于克隆节点，优化速度
+    render = $('#dataShow'), // table数据的挂载点
+    TEXTINDENT = 0,  // 初始间距，用于显示层级关系，增加用户体验
+    modify = $('.menu'), // 右键菜单栏
+    showChange = $('#showChange'), // 显示用户操作的包裹器
+    changeDataMap = $('.container input'), // 弹出框    修改数据的输入框
+    changeDataMapClick = $('.container button'), // 弹出框   确定、取消数据的修改
+    menu = $("#menu"), //获取我们自定义的右键菜单
+    flag = 0,
+    str = { 
+      "data":[
+        {
+          "name":"桌面事业部",
+          "type":0,
+          "lv":"A",
+          "manager":"YangHt",
+          "phone":"13699254***",
+          "children":[
+            {
+              "name":"测试部",
+              "type":1,
+              "lv":"B",
+              "manager":"LuJ",
+              "phone":"13699254***",
+              "children":[
+                {
+                  "name":"输入法组",
+                  "type":1,
+                  "lv":"C",
+                  "manager":"LiXm",
+                  "phone":"13699254***",
+                  "children":[
+                    {
+                      "name":"输入法组",
+                      "type":1,
+                      "lv":"D",
+                      "manager":"ZhaoF",
+                      "phone":"13699254***",
+                      "children":[
+                        {
+                          "name":"输入法组",
+                          "type":1,
+                          "lv":"E",
+                          "manager":"WangAy",
+                          "phone":"13699254***",
+                          "children":[]
+                        },{
+                          "name":"输入法组",
+                          "type":1,
+                          "lv":"E",
+                          "manager":"ZhaoL",
+                          "phone":"13699254***",
+                          "children":[]
+                        },{
+                          "name":"输入法组",
+                          "type":1,
+                          "lv":"E",
+                          "manager":"LiLy",
+                          "phone":"13699254***",
+                          "children":[]
+                        }
+                      ]
+                    },
+                    {
+                      "name":"Android组",
+                      "type":0,
+                      "lv":"D",
+                      "manager":"ZhouPj",
+                      "phone":"13699254***",
+                      "children":[]
+                    },
+                    {
+                      "name":"手机壁纸组",
+                      "type":0,
+                      "lv":"D",
+                      "manager":"LiJ",
+                      "phone":"13699254***",
+                      "children":[]
+                    }
+                  ]
+                },
+                {
+                  "name":"iOS组",
+                  "type":1,
+                  "lv":"C",
+                  "manager":"CuiYf",
+                  "phone":"13699254***",
+                  "children":[]
+                }
+              ]
+            },
+            {
+              "name":"无线商务合作部",
+              "type":1,
+              "lv":"B",
+              "manager":"WangXf",
+              "phone":"13699254***",
+              "children":[]
+            },
+            {
+              "name":"开发组",
+              "type":1,
+              "lv":"B",
+              "manager":"LiZt",
+              "phone":"13699254***",
+              "children":[]
+            }
+          ]
+        },
+        {
+          "name":"EHR组",
+          "type":1,
+          "lv":"A",
+          "manager":"LiQ",
+          "phone":"13901234***",
+          "children":[
+            {
+              "name":"总账核算组",
+              "type":1,
+              "lv":"B",
+              "manager":"WangX",
+              "phone":"18911208***",
+              "children":[
+                {
+                  "name":"总账核算组",
+                  "type":1,
+                  "lv":"C",
+                  "manager":"XiangX",
+                  "phone":"13699254***",
+                  "children":[
+                    {
+                      "name":"总账核算组",
+                      "type":1,
+                      "lv":"D",
+                      "manager":"PengJl",
+                      "phone":"13699254***",
+                      "children":[]
+                    },{
+                      "name":"总账核算组",
+                      "type":0,
+                      "lv":"D",
+                      "manager":"WangY",
+                      "phone":"13699254***",
+                      "children":[]
+                    },{
+                      "name":"总账核算组",
+                      "type":1,
+                      "lv":"D",
+                      "manager":"ShiJ",
+                      "phone":"13699254***",
+                      "children":[]
+                    }
+                  ]
+                },
+                {
+                  "name":"总账核算组",
+                  "type":1,
+                  "lv":"C",
+                  "manager":"YaoQ",
+                  "phone":"13699254***",
+                  "children":[]
+                },
+                {
+                  "name":"总账核算组",
+                  "type":1,
+                  "lv":"C",
+                  "manager":"LuYm",
+                  "phone":"13699254***",
+                  "children":[]
+                }
+              ]
+            },
+            {
+              "name":"商务拓展部",
+              "type":1,
+              "lv":"B",
+              "manager":"LiuL",
+              "phone":"13699254***",
+              "children":[
+                {
+                  "name":"商务拓展部",
+                  "type":0,
+                  "lv":"C",
+                  "manager":"LiXq",
+                  "phone":"13699254***",
+                  "children":[]
+                },{
+                  "name":"商务拓展部",
+                  "type":0,
+                  "lv":"C",
+                  "manager":"YangXf",
+                  "phone":"13699254***",
+                  "children":[]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name":"薪酬运营组",
+          "type":1,
+          "lv":"A",
+          "manager":"LiQs",
+          "phone":"010-51413****",
+          "children":[
+            {
+              "name":"BO组",
+              "type":1,
+              "lv":"B",
+              "manager":"PanXx",
+              "phone":"010-31314****",
+              "children":[]
+            },
+            {
+              "name":"薪酬运营组",
+              "type":1,
+              "lv":"B",
+              "manager":"LiJ",
+              "phone":"13699254***",
+              "children":[]
+            },
+            {
+              "name":"薪酬运营组",
+              "type":1,
+              "lv":"B",
+              "manager":"GaoS",
+              "phone":"010-31314****",
+              "children":[]
+            },
+            {
+              "name":"薪酬运营组",
+              "type":1,
+              "lv":"B",
+              "manager":"TianW",
+              "phone":"13699254***",
+              "children":[]
+            }
+          ]
+        }
+      ]
+    },
+    DOMTREE = str.data;
+// 公共数据方法 节点创建/显示DOMTREE数据/显示修改状态
+class Common{
+  constructor(data) {
+    this.currentClick = '';
+    this.once();
+    this.stack = [];
+    this.pointer = 0;
+  }
+  // 查找js对象从而修改数据，返回对象
+  find(id, domtree) {
+    let result = '';
+    function _find(id, domtree) {
+      for(let i = 0; i < domtree.length; i++) {
+        if(domtree[i].id == id) {
+          result =  domtree[i];
+          return;
+        }
+        if(domtree[i].children) {
+          _find(id, domtree[i].children);
+        }
+      }
+    }
+    _find(id, domtree);
+    return result;
+  }
+  // 判断是否需要拖动  相同节点、是否可以拖动type、父级拖子级禁止
+  judge(source,dist) {
+    // 判断相同文件
+    let date = new Date(),
+        dataShowStr = date.toLocaleDateString() + date.toLocaleTimeString(),
+        info = '';
+    if(dist.id == source.id) { 
+      info = dataShowStr +' 您移动的是相同的文件，系统撤销您的操作'
+      this.showInfo(info);
+      return false;
+    }
+    // 判断类型
+    if(source.type == 0 || dist.type == 0) {
+      info = dataShowStr + ' type= 0,目标不允许拖动或者拖入';
+      this.showInfo(info);
+      return false;
+    }
+    // 递归判断是否父子节点
+    let that = this;
+    function _find(source, distId) {
+      let i = 0, length = source.length;
+      for(; i < length ; i++) {
+        if(source[i].id == dist.id) {
+          info = dataShowStr + ' 父级不允许移动到子级';
+          that.showInfo(info);
+          return false;
+        }
+      }
+      if(source.children) {
+        _find(source.children, distId);
+      }
+    }
+    if(source.children) {
+      _find(source.children, dist.id);
+    }
+    return true;
+  }
+  // 只执行一次 一般是事件委托，事件绑定，初始化执行
+  once() {
+    window.onclick=function(e){
+      document.querySelector('#menu').style.display = 'none';
+    }
+    // 右键
+    let data = '';
+    modify.addEventListener('click',(e) => {
+      e.preventDefault();
+      data = this.find(this.currentClick, DOMTREE);
+      this.changeData(data);
+    }, false);
+    // 繁琐的逻辑错误检验，输出操作提示信息
+    changeDataMapClick[0].addEventListener('click', (e) => {
+      let date = new Date(),
+          stack_param = {
+            olddata: {},
+            newData: {},
+            type: 1
+          },
+          dataShowStr = date.toLocaleDateString() + date.toLocaleTimeString();
+      if(changeDataMap[0].value.trim() !== '0' && changeDataMap[0].value.trim() !== '1' ) {
+        this.showInfo('type必须是0或者1，您输入的数据有误，系统自动撤销您的操作');
+        return;
+      }
+      else if(!changeDataMap[1].value.trim()) {
+        this.showInfo('name必须存在，系统自动撤销您的操作');
+        return;
+      }
+      else if(!changeDataMap[2].value.trim()) {
+        this.showInfo('主管名必须存在，系统自动撤销您的操作');
+        return;
+      }
+      else if(!changeDataMap[3].value.trim()) {
+        this.showInfo('联系电话必须存在，系统自动撤销您的操作');
+        return;
+      }
+      stack_param.olddata.id = data.id;
+      if(data.type != changeDataMap[0].value.trim()) {
+        dataShowStr += ' 类型修改:' + data.type + "--->" + changeDataMap[0].value;
+        // 存入栈中
+        stack_param.olddata.type = data.type;
+        stack_param.newData.type = changeDataMap[0].value;
+        // 修改值
+        data.type = changeDataMap[0].value;
+      }
+      if(data.name != changeDataMap[1].value.trim()) {
+        dataShowStr += ' 管理部门名字修改:' + data.name + '--->' + changeDataMap[1].value;
+        // 存入栈中
+        stack_param.olddata.name = data.name;
+        stack_param.newData.name = changeDataMap[1].value;
+        // 修改值
+        data.name = changeDataMap[1].value;
+      }
+      if(data.manager != changeDataMap[2].value.trim()) {
+        dataShowStr += ' 管理组长修改:' + data.manager + "--->" + changeDataMap[2].value;
+        // 存入栈中
+        stack_param.olddata.manager = data.manager;
+        stack_param.newData.manager = changeDataMap[2].value;
+        // 修改值
+        data.manager = changeDataMap[2].value;
+      }
+      if(data.phone != changeDataMap[3].value.trim()) {
+        dataShowStr += ' 联系电话修改:' + data.phone + " ---> " + changeDataMap[3].value;
+        // 存入栈中
+        stack_param.olddata.phone = data.phone;
+        stack_param.newData.phone = changeDataMap[3].value;
+        // 修改值
+        data.phone = changeDataMap[3].value;
+      }
+      this.stack.push(stack_param); // 压栈
+      this.showInfo(dataShowStr); // 显示数据
+      dataShowStr = '';  // 清空数据
+      this.updateLine(data.id, data);
+      // console.log(this.stack,data.id, data);
+    }, false);
+    changeDataMapClick[1].addEventListener('click', () => {
+    }, false);
+    prev.addEventListener('click', () => {
+      if(!this.stack) {
+        console.log('没有操作，无法撤销');
+        return;
+      }
+      let current = this.stack ? this.stack.pop() : '';
+      if(!current) {
+        this.showInfo('到底了....');
+        return;
+      }
+      // this.stack.push({  // 压栈
+      //   type: 2, // 压栈类型
+      //   sourceId,
+      //   father, // 显示源父节点
+      //   distId,
+      //   sourceLv: source.lv  // 层级保存
+      // });
+      console.log(current);
+      if(current.type == 1) { // 修改值的话，返回就行
+        let source = this.find(current.olddata.id, DOMTREE);
+        this.updateLine(current.olddata.id, Object.assign( source, current.olddata));
+      } else {
+          let sour = this.find(current.distId, DOMTREE).children.pop();
+          current.father.type == 0 ? DOMTREE.push(sour) : this.find(current.father.id, DOMTREE).children.push(sour);
+          this.setLv(current.sourceLv,sour, 1);// 1减少层级   0 增加层级，默认
+        this.clearDom();
+        // 重新渲染数据
+        this.showTableDOM(DOMTREE, render);
+      }
+    },false);
+  }
+  // 修改数据后重新绘画  只绘画当前行
+  updateLine(id,data) {
+    let children = $('#'+id).children;
+    console.log(children, data);
+    [ children[1].innerHTML, children[2].innerHTML, children[3].innerHTML, children[4].innerHTML ] = 
+    [ data.type, data.name, data.manager, data.phone]
+  }
+  // 为了撤销功能，必须知道被拖动的source的父包裹值---根据id获取父级元素id
+  findFather(id, domTree) {
+    let result = '';
+    function _find(id, dom) {
+      for(let i = 0; i < dom.length; i++) {
+        if(dom[i].id == id) {
+          result = arguments[2] ? {id: arguments[2].id,type: 1} : {id,type: 0};// type: 1  有父节点 0 没有父节点
+        }
+        if(dom[i].children) {
+          _find(id, dom[i].children, dom[i]);
+        }
+      }
+    }
+    _find(id,domTree);
+    return result;
+  }
+  // 拖动事件
+  drag(el) {
+    let ele = el;
+    el.setAttribute('draggable', true);
+    /*拖动目标 source*/
+    el.addEventListener("dragstart", (event) => {
+      event.dataTransfer.setData("Text",ele.id);
+    }, false);
+    /*被放置目标*/
+    el.addEventListener("dragover", (event) => {
+      // 取消默认不能放置内部机制
+      event.preventDefault();
+    }, false);
+    el.addEventListener("dragenter",(event) => {  
+      // 鼠标经过的元素....  可优化，事件委托body
+      event.preventDefault();
+    }, false);
+    // 拖动落下的目标
+    el.addEventListener("drop", (event) => {
+      event.preventDefault();
+      let sourceId =event.dataTransfer.getData("Text");  // 源id
+      let distId = ele.id;  // 目标id
+      /**
+        * 现在就是对json数据的修改了.... 然后重新渲染table
+        * 调用 drapJson...
+        * 思想： 看似dom改变，实则数据改变
+        * 获取自身数据和父组件数据.... 父组件插入自身数据
+      */
+      this.updateDomTree(sourceId, distId);
+    }, false)
+  }
+  // 核心操作，这里提供所有接口的调用，主要用于组合功能，实现数据的修改、更新、撤销、反撤销
+  updateDomTree(sourceId, distId) {
+    let source = this.find(sourceId, DOMTREE),
+        dist = this.find(distId, DOMTREE);
+    let result = this.judge(source, dist);
+    if(result) {
+      let father = this.findFather(sourceId, DOMTREE),
+          info = '',
+          sou = source;
+      // console.log(fatherId);
+      // console.log(DOMTREE);
+      this.stack.push({  // 压栈
+        type: 2, // 压栈类型
+        sourceId,
+        father, // 显示源父节点
+        distId,
+        sourceLv: source.lv  // 层级保存
+      });
+      info =  this.reseting(source, 1, DOMTREE, sou) + " 移动到了 ";
+      info += this.reseting(dist, 2, DOMTREE, sou);
+      this.pointer = this.stack.length -1; // 指针移动
+      // 修改层级lv
+      this.setLv(dist.lv, source, 0);
+      // 显示操作
+      this.showInfo(info);
+      // 清空dom
+      this.clearDom();
+      // 重新渲染数据
+      this.showTableDOM(DOMTREE, render);
+    }
+  }
+  // 重新定义层级  可以优化，只修改增加的内部层级
+  setLv(distLv,source,type) {
+    console.log(distLv);
+    source.lv = type== 0 ? String.fromCharCode (distLv.charCodeAt() + 1 ) : distLv;
+    console.log(source.lv);
+    // console.log(source);
+    function _setLv(lv, source) {
+      for(let i = 0; i < source.length; i++) {
+        source[i].lv = String.fromCharCode (lv.charCodeAt() + 1 );
+        // console.log(source[i].children.length);
+        if(source[i].children.length) {
+          _setLv(source[i].lv, source[i].children);
+        }
+      }
+    }
+    if(source.children.length) {
+      _setLv(source.lv, source.children);
+    }
+    // console.log(source);
+  }
+  // 洗牌重新生成table
+  clearDom() {
+    let clear = $('tbody>tr');  // 清空原dom结构
+    clear.forEach(item => $('tbody').removeChild(item));
+  }
+// 修改DOMTREE数据  拖动后数据修改
+  reseting(obj, type, items, source) {
+    let result = '';
+    function _reseting(obj, type, items, source) {
+      for(let i = 0; i< items.length;i++) {
+        if(items[i].id == obj.id) {
+          result = items[i].name;
+          if(type == 1) {
+            // console.log(items[i]);
+            items.splice(i, 1);  // 删除数据
+           
+          } else {   // 添加数据
+            items[i].children = items[i].children.length ? items[i].children : [];
+            items[i].children.push(source);
+          }
+          return;
+        }
+        if(items[i].children.length) {
+          _reseting(obj, type, items[i].children, source);
+        }
+      }
+    }
+    _reseting(obj, type, items, source);
+    return result;
+  }
+  // 显示用户操作
+  showInfo(info) {
+    let addInfo = document.createElement('p');
+    addInfo.innerHTML = info;
+    if(showChange.firstChild) {
+     showChange.insertBefore(addInfo, showChange.childNodes[0]);
+    } else {
+      showChange.appendChild(addInfo);
+    }
+  }
+  // 弹出框 显示初始值 
+  changeData(data) {
+    changeDataMap[0].value = data.type;
+    changeDataMap[1].value = data.name;
+    changeDataMap[2].value = data.manager;
+    changeDataMap[3].value = data.phone;
+  }
+  // 创建每一行的tr以及内部标签、数据
+  createDOM(render) {
+    let index = 0, 
+        td_arr = [],
+        tr = TR.cloneNode();
+    this._selfMenu(tr);
+    while(index < 5) {
+      let td = TD.cloneNode();
+      tr.appendChild(td);
+      td_arr.push(td)
+      index ++;
+    }
+    render.appendChild(tr);
+    return {
+      tr,
+      td_arr
+    }
+  }
+  // 绑定自定义右键菜单
+  _selfMenu(el) {
+    el.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      menu.style.left = e.clientX+'px';
+      menu.style.top = e.clientY+'px';
+      menu.style.display = 'inline-block';
+      this.currentClick = el.id;
+    }, false); 
+  }
+  // 显示table数据  数据、挂载点
+  showTableDOM(domtree, render) {
+    for(let i = 0; i < domtree.length; i++) {
+      let _createDom = this.createDOM(render);
+      _createDom.td_arr[0].innerHTML = domtree[i].lv; // 层级
+      _createDom.td_arr[1].innerHTML = domtree[i].type;  // 类型，是否可以移动
+      _createDom.td_arr[2].innerHTML = domtree[i].name; // 文件名
+      _createDom.td_arr[3].innerHTML = domtree[i].manager; // 主管
+      _createDom.td_arr[4].innerHTML = domtree[i].phone; // 联系电话
+      if(!flag) {
+        domtree[i].id = "xu_"+Math.random().toString().slice(2);
+        _createDom.tr.id = domtree[i].id; // 设置domtree数据的id进行匹配赋值
+      } else {
+        _createDom.tr.id = domtree[i].id;
+      }
+      _createDom.td_arr[2].style.textIndent = ( domtree[i].lv.charCodeAt()-65 ) * 12 + "px";
+      // 拖动
+      this.drag(_createDom.tr);
+      if(domtree[i].children) {
+        this.showTableDOM(domtree[i].children, render);
+      }
+    }
+  }
+}
+// 调用
+let common = new Common();
+common.showTableDOM(DOMTREE, render);
+flag = 1;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</script>
+</html>
+
